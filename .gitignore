@@ -1,5 +1,4 @@
-# pixi environments
-.pixi
 feeds.toml
 config.toml
 feeds.db
+.env/*

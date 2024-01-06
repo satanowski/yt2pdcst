@@ -1,0 +1,16 @@
+<itunes:explicit>no</itunes:explicit>
+<itunes:type>episodic</itunes:type>
+<itunes:subtitle>{{podcast_subtitle}}</itunes:subtitle>
+<itunes:author>{{podcast_author}}</itunes:author>
+<itunes:summary>{{podcast_summary}}</itunes:summary>
+<content:encoded>
+    <![CDATA[<p>{{podcast_summary}}</p>]]>
+</content:encoded>
+<itunes:owner>
+    <itunes:name>{{podcast_name}}</itunes:name>
+    <itunes:email>{{podcast_email}}</itunes:email>
+</itunes:owner>
+<itunes:image href="{{podcast_url}}"/>
+{% for cat in podcast_categories %}
+<itunes:category text="{{cat}}"> </itunes:category>
+{% endfor %}

@@ -1,0 +1,19 @@
+downlad_dir = "/tmp"
+host_dir = "/var/www/podcasts/files"
+
+
+[RSS_SETTINGS]
+base_url = "http://www.myawsomepodcast.com"
+index = "index.xml"
+
+[RSS_META]
+copyright = "something @ 2024"
+podcast_author = "Some author"
+podcast_categories = ["other"]
+podcast_description = "Lorem ipsum"
+podcast_email = "fake@email.com"
+podcast_image_url = "https://some.image.link"
+podcast_name = "YT2Podcast"
+podcast_subtitle = "something something"
+podcast_summary = "Lorem ipsum"
+podcast_item_base_url = "http://www.myawsomepodcast.com/files/"

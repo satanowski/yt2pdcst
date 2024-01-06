@@ -34,4 +34,8 @@ def get_audio(vid_id: str, download_dir: str):
         try:
             return ydl.download([f"https://www.youtube.com/watch?v={vid_id}"]) == 0
         except yt_dlp.utils.ExtractorError:
-            return False
+            log.error(f"Cannot extract audio from stream {vid_id}")
+        except yt_dlp.utils.DownloadError:
+            log.error(f"Cannot downlaod stream {vid_id}")
+        return False
+

@@ -31,4 +31,7 @@ def get_audio(vid_id: str, download_dir: str):
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        return ydl.download([f"https://www.youtube.com/watch?v={vid_id}"]) == 0
+        try:
+            return ydl.download([f"https://www.youtube.com/watch?v={vid_id}"]) == 0
+        except yt_dlp.utils.ExtractorError:
+            return False

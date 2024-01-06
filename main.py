@@ -65,12 +65,15 @@ def download_episodes():
         log.debug(f"Downloading episode {epi.title}...")
         if not get_audio(epi.vid_id, download_dir=config["downlad_dir"]):
             continue
+        tmp_file = f"{config['downlad_dir']}/{epi.vid_id}.m4a"
 
+        if not Path(tmp_file).exists():  # probably skipped downlaod (live stream)
+            log.debug("No file downloaded - probably skipped")
+            continue
+
+        dst_file = f"{config['host_dir']}/{epi.vid_id}.m4a"
         log.info(f"Entry '{epi.title}' downloaded succesfully")
-        shutil.move(
-            f"{config['downlad_dir']}/{epi.vid_id}.m4a",
-            f"{config['host_dir']}/{epi.vid_id}.m4a",
-        )
+        shutil.move(tmp_file, dst_file)
         duration = int(
             mutagen.File(f"{config['host_dir']}/{epi.vid_id}.m4a").info.length
         )

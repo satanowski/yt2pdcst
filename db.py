@@ -20,7 +20,7 @@ Episode = namedtuple("episode", "id,num,title,date,thumb,desc,channel,duration")
 
 class FeedDB:
     def __init__(self, db_file=DB_FILE):
-        self._db = pickledb.load(DB_FILE, True)
+        self._db = pickledb.load(db_file, True)
         self.setup()
 
     def setup(self):

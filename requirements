@@ -1,3 +1,4 @@
+-i https://pypi.org/simple
 Jinja2
 feedparser
 loguru
@@ -5,3 +6,7 @@ mutagen
 pickleDB
 toml
 yt-dlp
+pylint
+isort
+black
+bpython

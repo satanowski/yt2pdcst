@@ -95,15 +95,19 @@ class PDCTSDB:
         except IntegrityError:
             log.debug(f"Episode '{title}' already exists!")
 
-    def get_episodes(self) -> Iterable[Episode]:
-        return Episode.select().order_by(Episode.pub_date)
+    def get_episodes(self, processed=None) -> Iterable[Episode]:
+        if processed is None:
+            return Episode.select().order_by(Episode.pub_date)
+        else:
+            return (
+                Episode.select()
+                .where(Episode.processed == processed)  # pylint:disable=singleton-comparison
+                .order_by(Episode.pub_date)
+            )
+            
 
     def get_episodes2download(self) -> Iterable[Episode]:
-        return (
-            Episode.select()
-            .where(Episode.processed == False)  # pylint:disable=singleton-comparison
-            .order_by(Episode.pub_date)
-        )
+        return self.get_episodes(processed=False)
 
     def get_channels(self) -> Iterable[Channel]:
         return Channel.select().order_by(Channel.channel_id)

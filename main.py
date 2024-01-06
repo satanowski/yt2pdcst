@@ -99,7 +99,7 @@ def write_rss():
     meta["podcast_url"] = base_url
     rss_file = Path(f"{config['host_dir']}/{config['RSS_SETTINGS']['index']}")
     with rss_file.open("w", encoding="utf-8") as rss:
-        rss.write(make_rss(context=meta, entries=db.get_episodes()))
+        rss.write(make_rss(context=meta, entries=db.get_episodes(processed=True)))
         log.debug(f"rss file written ({rss_file.name})")
 
 

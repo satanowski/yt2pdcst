@@ -98,13 +98,13 @@ class PDCTSDB:
     def get_episodes(self, processed=None) -> Iterable[Episode]:
         if processed is None:
             return Episode.select().order_by(Episode.pub_date)
-        else:
-            return (
-                Episode.select()
-                .where(Episode.processed == processed)  # pylint:disable=singleton-comparison
-                .order_by(Episode.pub_date)
-            )
-            
+        return (
+            Episode.select()
+            .where(
+                Episode.processed == processed
+            )  # pylint:disable=singleton-comparison
+            .order_by(Episode.pub_date)
+        )
 
     def get_episodes2download(self) -> Iterable[Episode]:
         return self.get_episodes(processed=False)

@@ -38,4 +38,3 @@ def get_audio(vid_id: str, download_dir: str):
         except yt_dlp.utils.DownloadError:
             log.error(f"Cannot downlaod stream {vid_id}")
         return False
-

@@ -2,3 +2,4 @@ feeds.toml
 config.toml
 feeds.db
 .env/*
+store/*

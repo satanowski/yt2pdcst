@@ -1,79 +1,109 @@
-from collections import namedtuple
+import re
 from pathlib import Path
+from typing import Iterable
 
-import pickledb
+from loguru import logger as log
+from peewee import (
+    BooleanField,
+    CharField,
+    DateField,
+    ForeignKeyField,
+    IntegrityError,
+    Model,
+    SmallIntegerField,
+    SqliteDatabase,
+)
 
-DB_FILE = Path(__file__).parent / "feeds.db"
+DB_FILE = Path(__file__).parent / "feeds.sqlite"
 
-DB_L_DOWN = "downloaded"
-DB_L_PUB = "published"
-
-DB_D_TITLES = "titles"
-DB_D_THUMBS = "thumbs"
-DB_D_DESCS = "descriptions"
-DB_D_DATES = "dates"
-DB_D_CHANNELS = "channels"
-DB_D_DURATIONS = "durations"
-
-Episode = namedtuple("episode", "id,num,title,date,thumb,desc,channel,duration")
+db = SqliteDatabase(DB_FILE, pragmas={"journal_mode": "wal", "foreign_keys": 1})
 
 
-class FeedDB:
-    def __init__(self, db_file=DB_FILE):
-        self._db = pickledb.load(db_file, True)
-        self.setup()
+class Channel(Model):  # pylint:disable=too-few-public-methods
+    channel_id = CharField(primary_key=True)
+    name = CharField()
+    epi_title_remove = CharField(default="")
 
-    def setup(self):
-        for alist in (DB_L_DOWN, DB_L_PUB):
-            if not self._db.exists(alist):
-                self._db.lcreate(alist)
+    class Meta:  # pylint:disable=too-few-public-methods
+        database = db
 
-        for adict in (
-            DB_D_TITLES,
-            DB_D_THUMBS,
-            DB_D_DESCS,
-            DB_D_DATES,
-            DB_D_CHANNELS,
-            DB_D_DURATIONS,
-        ):
-            if not self._db.exists(adict):
-                self._db.dcreate(adict)
 
-    def is_downloaded(self, vid_id: str) -> bool:
-        return self._db.lexists(DB_L_DOWN, vid_id)
+class Episode(Model):  # pylint:disable=too-few-public-methods
+    vid_id = CharField(primary_key=True)
+    channel = ForeignKeyField(Channel, backref="channel")
+    title = CharField()
+    description = CharField()
+    pub_date = DateField()
+    thumbnail = CharField()
+    duration = SmallIntegerField()
+    processed = BooleanField(default=False)
 
-    def is_published(self, vid_id: str) -> bool:
-        return self._db.lexists(DB_L_PUB, vid_id)
+    class Meta:  # pylint:disable=too-few-public-methods
+        database = db
 
-    def add_vid(
+    def mark_as_processed(self, duration: int) -> bool:
+        self.processed = True
+        self.duration = duration
+        return self.save() == 1
+
+
+class PDCTSDB:
+    def __init__(self):
+        db.connect()
+        db.create_tables([Channel, Episode])
+
+    def add_channel(self, channel_id: str, name: str, title_remove: str):
+        log.debug(f"Adding new channel: {name}")
+        ch = Channel(channel_id=channel_id, name=name, epi_title_remove=title_remove)
+        try:
+            row_count = ch.save(force_insert=True)
+            log.debug(f"Channel {name} {'not' if row_count!=1 else ''} added!")
+        except IntegrityError:
+            log.debug(f"Channel {name} already exists!")
+
+    def is_downloaded(self, episode_id: str) -> bool:
+        log.debug(f"Checking if episode {episode_id} is already downloaded")
+        return Episode.get(Episode.vid_id == episode_id) is not None
+
+    def add_new_episode(
         self,
-        vid_id: str,
+        episode_id: str,
         title: str,
-        created: str,
+        pub_date: str,
         thumb: str,
-        desc: str,
-        channel: str,
-        duration: int,
+        description: str,
+        channel: Channel,
     ):
-        if self.is_downloaded(vid_id):
-            return
-        self._db.ladd(DB_L_DOWN, vid_id)
-        self._db.dadd(DB_D_TITLES, (vid_id, title))
-        self._db.dadd(DB_D_THUMBS, (vid_id, thumb))
-        self._db.dadd(DB_D_DESCS, (vid_id, desc))
-        self._db.dadd(DB_D_DATES, (vid_id, created))
-        self._db.dadd(DB_D_CHANNELS, (vid_id, channel))
-        self._db.dadd(DB_D_DURATIONS, (vid_id, duration))
-
-    def get_episodes(self):
-        for idx, ep_id in enumerate(self._db.lgetall(DB_L_DOWN)):
-            yield Episode(
-                id=ep_id,
-                num=idx,
-                title=self._db.dget(DB_D_TITLES, ep_id),
-                date=self._db.dget(DB_D_DATES, ep_id),
-                thumb=self._db.dget(DB_D_THUMBS, ep_id),
-                desc=self._db.dget(DB_D_DESCS, ep_id),
-                channel=self._db.dget(DB_D_CHANNELS, ep_id),
-                duration=self._db.dget(DB_D_DURATIONS, ep_id),
+        if channel.epi_title_remove:
+            title = re.sub(
+                re.compile(channel.epi_title_remove, re.IGNORECASE), "", title
             )
+        title = title.strip()
+
+        epi = Episode(
+            vid_id=episode_id,
+            channel=channel,
+            title=title,
+            description=description.strip(),
+            thumbnail=thumb,
+            pub_date=pub_date,
+            duration=0,
+        )
+        try:
+            row_count = epi.save(force_insert=True)
+            log.debug(f"Episode '{title}' {'not' if row_count!=1 else ''} added!")
+        except IntegrityError:
+            log.debug(f"Episode '{title}' already exists!")
+
+    def get_episodes(self) -> Iterable[Episode]:
+        return Episode.select().order_by(Episode.pub_date)
+
+    def get_episodes2download(self) -> Iterable[Episode]:
+        return (
+            Episode.select()
+            .where(Episode.processed == False)  # pylint:disable=singleton-comparison
+            .order_by(Episode.pub_date)
+        )
+
+    def get_channels(self) -> Iterable[Channel]:
+        return Channel.select().order_by(Channel.channel_id)

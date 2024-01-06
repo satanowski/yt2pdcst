@@ -6,6 +6,8 @@ mutagen
 pickleDB
 toml
 yt-dlp
+peewee
+click
 pylint
 isort
 black

@@ -2,18 +2,17 @@ import shutil
 import sys
 from pathlib import Path
 
+import click
 import mutagen
 import toml
 from loguru import logger as log
 from toml.decoder import TomlDecodeError
 
-from db import FeedDB
-from feed import get_audio, get_feed_entries, load_feed_list
+from db import PDCTSDB
+from feed import get_audio, get_channel_episodes
 from rss import make_rss
 
 CFG_FILE = Path(__file__).parent / "config.toml"
-
-db = FeedDB()
 
 
 def load_config(cfg_file=CFG_FILE) -> dict:
@@ -29,47 +28,80 @@ def load_config(cfg_file=CFG_FILE) -> dict:
 
 config = load_config()
 
+db = PDCTSDB()
 
-def get_episode_and_store(
-    vid_id: str, title: str, date: str, thumb: str, desc: str, channel: str
-):
-    log.debug(f"Getting VID:{vid_id}: {title}")
-    if db.is_downloaded(vid_id):
-        return
 
-    if get_audio(vid_id, download_dir=config["downlad_dir"]):
-        log.info(f"Entry '{title}' downloaded succesfully")
+@click.group()
+def cli():
+    pass
+
+
+@cli.command(help="Add YT channel to watch list")
+@click.argument("channel_id", required=True)
+@click.argument("channel_name", required=True)
+@click.option(
+    "--title-remove", default="", help="String (rgxp) to be removed from episode title"
+)
+def add_channel(channel_id, channel_name, title_remove):
+    log.debug(f"Adding channell {channel_id}:{channel_name}")
+    db.add_channel(channel_id, channel_name, title_remove)
+
+
+@cli.command(help="Check and register new episodes")
+def get_episodes():
+    log.debug("Getting new episodes from YT...")
+    for channel in db.get_channels():  # pylint:disable=not-an-iterable
+        log.debug(f"Checking channel: {channel.name}...")
+        for epi in get_channel_episodes(channel.channel_id):
+            db.add_new_episode(
+                epi.epi_id, epi.title, epi.pub_date, epi.thumb, epi.description, channel
+            )
+
+
+@cli.command(help="Download eepisodes")
+def download_episodes():
+    log.debug("Download new episodes from YT...")
+    for epi in db.get_episodes2download():  # pylint:disable=not-an-iterable
+        log.debug(f"Downloading episode {epi.title}...")
+        if not get_audio(epi.vid_id, download_dir=config["downlad_dir"]):
+            continue
+
+        log.info(f"Entry '{epi.title}' downloaded succesfully")
         shutil.move(
-            f"{config['downlad_dir']}/{vid_id}.m4a",
-            f"{config['host_dir']}/{vid_id}.m4a",
+            f"{config['downlad_dir']}/{epi.vid_id}.m4a",
+            f"{config['host_dir']}/{epi.vid_id}.m4a",
         )
-        duration = int(mutagen.File(f"{config['host_dir']}/{vid_id}.m4a").info.length)
-
-        db.add_vid(vid_id, title, date, thumb, desc, channel, duration)
-
-
-def get_new_episodes():
-    for channel, feed_data in load_feed_list().items():
-        log.debug(f"Checking channel: {channel}...")
-
-        for idx, data in enumerate(get_feed_entries(feed_data["channel_id"])):
-            if idx >= feed_data["recent"]:
-                break
-            get_episode_and_store(*data, channel)
+        duration = int(
+            mutagen.File(f"{config['host_dir']}/{epi.vid_id}.m4a").info.length
+        )
+        epi.mark_as_processed(duration)
 
 
-def prepare_rss():
+@cli.command(help="List registered channels")
+def list_channels():
+    for ch in db.get_channels():  # pylint:disable=not-an-iterable
+        print(f"{ch.channel_id}: {ch.name}")
+
+
+@cli.command(help="List registered episodes")
+def list_episodes():
+    for epi in db.get_episodes():  # pylint:disable=not-an-iterable
+        print(
+            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}] {epi.title}"
+        )
+
+
+@cli.command(help="Generate RSS")
+def write_rss():
     log.debug("Preparing rss...")
     meta = config["RSS_META"]
-    meta[
-        "podcast_url"
-    ] = f"{config['RSS_SETTINGS']['base_url']}/{config['RSS_SETTINGS']['index']}"
-    return make_rss(context=meta, entries=db.get_episodes())
+    base_url = f"{config['RSS_SETTINGS']['base_url']}/{config['RSS_SETTINGS']['index']}"
+    meta["podcast_url"] = base_url
+    rss_file = Path(f"{config['host_dir']}/{config['RSS_SETTINGS']['index']}")
+    with rss_file.open("w", encoding="utf-8") as rss:
+        rss.write(make_rss(context=meta, entries=db.get_episodes()))
+        log.debug(f"rss file written ({rss_file.name})")
 
 
 if __name__ == "__main__":
-    get_new_episodes()
-    with Path(f"{config['host_dir']}/{config['RSS_SETTINGS']['index']}").open(
-        "w", encoding="utf-8"
-    ) as rss:
-        rss.write(prepare_rss())
+    cli()

@@ -1,33 +1,25 @@
-from pathlib import Path
+from collections import namedtuple
 
 import feedparser
-import toml
 import yt_dlp
 from loguru import logger as log
 
 YT_RSS_BASE = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
-FEEDS_FILE = Path(__file__).parent / "feeds.toml"
+
+RawEpisode = namedtuple("RawEpisode", "epi_id,title,pub_date,thumb,description")
 
 
-def load_feed_list(feed_file=FEEDS_FILE) -> dict:
-    if not feed_file.exists():
-        log.error(f"No feed file {feed_file.name}")
-        return {}
-
-    return toml.load(feed_file.open("r", encoding="utf-8"))
-
-
-def get_feed_entries(channel_id: str):
+def get_channel_episodes(channel_id: str):
     url = YT_RSS_BASE.format(channel_id)
     log.debug(f"Getting and parsing Feed: {url}")
     feed = feedparser.parse(url)
     for entry in feed["entries"]:
-        yield (
-            entry["yt_videoid"],
-            entry["title"],
-            entry["published"],
-            entry["media_thumbnail"][0]["url"],
-            entry["summary_detail"]["value"],
+        yield RawEpisode(
+            epi_id=entry["yt_videoid"],
+            title=entry["title"],
+            pub_date=entry["published"],
+            thumb=entry["media_thumbnail"][0]["url"],
+            description=entry["summary_detail"]["value"],
         )
 
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import shutil
 import sys
 from pathlib import Path
@@ -104,6 +105,13 @@ def write_rss():
     with rss_file.open("w", encoding="utf-8") as rss:
         rss.write(make_rss(context=meta, entries=db.get_episodes(processed=True)))
         log.debug(f"rss file written ({rss_file.name})")
+
+@cli.command(help="Refresh RSS")
+@click.pass_context
+def refresh(ctx):
+    ctx.invoke(get_episodes)
+    ctx.invoke(download_episodes)
+    ctx.invoke(write_rss)
 
 
 if __name__ == "__main__":

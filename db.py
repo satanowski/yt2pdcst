@@ -16,16 +16,11 @@ from peewee import (
 
 DB_FILE = Path(__file__).parent / "feeds.sqlite"
 
-db = SqliteDatabase(DB_FILE, pragmas={"journal_mode": "wal", "foreign_keys": 1})
-
 
 class Channel(Model):  # pylint:disable=too-few-public-methods
     channel_id = CharField(primary_key=True)
     name = CharField()
     epi_title_remove = CharField(default="")
-
-    class Meta:  # pylint:disable=too-few-public-methods
-        database = db
 
 
 class Episode(Model):  # pylint:disable=too-few-public-methods
@@ -37,20 +32,36 @@ class Episode(Model):  # pylint:disable=too-few-public-methods
     thumbnail = CharField()
     duration = SmallIntegerField()
     processed = BooleanField(default=False)
-
-    class Meta:  # pylint:disable=too-few-public-methods
-        database = db
+    present = BooleanField(default=False)
 
     def mark_as_processed(self, duration: int) -> bool:
         self.processed = True
+        self.present = True
         self.duration = duration
+        return self.save() == 1
+
+    def mark_as_missing(self) -> bool:
+        self.present = False
+        log.debug(f"Mark {self.vid_id} as not present")
         return self.save() == 1
 
 
 class PDCTSDB:
     def __init__(self):
-        db.connect()
-        db.create_tables([Channel, Episode])
+        self._db = SqliteDatabase(
+            DB_FILE,
+            pragmas=(
+                ("journal_mode", "wal"),
+                ("foreign_keys", 1),
+                ("cache_size", -1024 * 64),
+            ),
+        )
+
+        Channel.bind(self._db)
+        Episode.bind(self._db)
+
+        self._db.connect()
+        self._db.create_tables([Channel, Episode])
 
     def add_channel(self, channel_id: str, name: str, title_remove: str):
         log.debug(f"Adding new channel: {name}")
@@ -65,6 +76,9 @@ class PDCTSDB:
         log.debug(f"Checking if episode {episode_id} is already downloaded")
         return Episode.get(Episode.vid_id == episode_id) is not None
 
+    def epi_exists(self, epi_id: str) -> bool:
+        return Episode.get_or_none(Episode.vid_id == epi_id) is not None
+
     def add_new_episode(
         self,
         episode_id: str,
@@ -74,6 +88,10 @@ class PDCTSDB:
         description: str,
         channel: Channel,
     ):
+        if self.epi_exists(episode_id):
+            log.debug(f"Episode '{title}' already exists!")
+            return
+
         if channel.epi_title_remove:
             title = re.sub(
                 re.compile(channel.epi_title_remove, re.IGNORECASE), "", title
@@ -88,6 +106,8 @@ class PDCTSDB:
             thumbnail=thumb,
             pub_date=pub_date,
             duration=0,
+            present=False,
+            processed=False,
         )
         try:
             row_count = epi.save(force_insert=True)
@@ -95,19 +115,27 @@ class PDCTSDB:
         except IntegrityError:
             log.debug(f"Episode '{title}' already exists!")
 
-    def get_episodes(self, processed=None) -> Iterable[Episode]:
-        if processed is None:
-            return Episode.select().order_by(Episode.pub_date)
-        return (
-            Episode.select()
-            .where(
-                Episode.processed == processed
-            )  # pylint:disable=singleton-comparison
-            .order_by(Episode.pub_date)
-        )
+    def get_episodes(
+        self, processed: bool | None, present: bool | None
+    ) -> Iterable[Episode]:
+        q = Episode.select()
+        if processed is not None:
+            q = q.where(Episode.processed == processed)
+        if present is not None:
+            q = q.where(Episode.present == present)
+
+        return q.order_by(Episode.pub_date)
 
     def get_episodes2download(self) -> Iterable[Episode]:
-        return self.get_episodes(processed=False)
+        return self.get_episodes(processed=False, present=False).limit(5)
 
     def get_channels(self) -> Iterable[Channel]:
         return Channel.select().order_by(Channel.channel_id)
+
+    def mark_missing(self, present_files: Iterable[str]):
+        for epi in Episode.select().where(Episode.present == True):
+            if f"{epi.vid_id}.m4a" not in present_files:
+                epi.mark_as_missing()
+
+    def close(self):
+        self._db.close()

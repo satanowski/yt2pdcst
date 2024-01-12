@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import atexit
 import shutil
 import sys
 from pathlib import Path
@@ -34,6 +35,7 @@ db = PDCTSDB()
 
 @click.group()
 def cli():
+    atexit.register(db.close)
     pass
 
 
@@ -51,11 +53,16 @@ def add_channel(channel_id, channel_name, title_remove):
 @cli.command(help="Check and register new episodes")
 def get_episodes():
     log.debug("Getting new episodes from YT...")
-    for channel in db.get_channels():  # pylint:disable=not-an-iterable
+    for channel in db.get_channels():
         log.debug(f"Checking channel: {channel.name}...")
-        for epi in get_channel_episodes(channel.channel_id):
+        for epi in get_channel_episodes(str(channel.channel_id)):
             db.add_new_episode(
-                epi.epi_id, epi.title, epi.pub_date, epi.thumb, epi.description, channel
+                episode_id=epi.epi_id,
+                title=epi.title,
+                description=epi.description,
+                channel=channel,
+                pub_date=epi.pub_date,
+                thumb=epi.thumb,
             )
 
 
@@ -64,7 +71,7 @@ def download_episodes():
     log.debug("Download new episodes from YT...")
     for epi in db.get_episodes2download():  # pylint:disable=not-an-iterable
         log.debug(f"Downloading episode {epi.title}...")
-        if not get_audio(epi.vid_id, download_dir=config["downlad_dir"]):
+        if not get_audio(str(epi.vid_id), download_dir=config["downlad_dir"]):
             continue
         tmp_file = f"{config['downlad_dir']}/{epi.vid_id}.m4a"
 
@@ -75,9 +82,8 @@ def download_episodes():
         dst_file = f"{config['host_dir']}/{epi.vid_id}.m4a"
         log.info(f"Entry '{epi.title}' downloaded succesfully")
         shutil.move(tmp_file, dst_file)
-        duration = int(
-            mutagen.File(f"{config['host_dir']}/{epi.vid_id}.m4a").info.length
-        )
+        muu = mutagen.File(f"{config['host_dir']}/{epi.vid_id}.m4a")
+        duration = int(muu.info.length) if muu else 0
         epi.mark_as_processed(duration)
 
 
@@ -89,9 +95,12 @@ def list_channels():
 
 @cli.command(help="List registered episodes")
 def list_episodes():
-    for epi in db.get_episodes():  # pylint:disable=not-an-iterable
+    print("Registered episodes:")
+    for epi in db.get_episodes(
+        processed=None, present=None
+    ):  # pylint:disable=not-an-iterable
         print(
-            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}] {epi.title}"
+            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] {epi.title}"
         )
 
 
@@ -103,14 +112,27 @@ def write_rss():
     meta["podcast_url"] = base_url
     rss_file = Path(f"{config['host_dir']}/{config['RSS_SETTINGS']['index']}")
     with rss_file.open("w", encoding="utf-8") as rss:
-        rss.write(make_rss(context=meta, entries=db.get_episodes(processed=True)))
+        rss.write(
+            make_rss(
+                context=meta, entries=db.get_episodes(processed=True, present=True)
+            )
+        )
         log.debug(f"rss file written ({rss_file.name})")
+
+
+@cli.command(help="Mark missing files")
+def mark_missing():
+    log.debug("Check if any file is missing....")
+    present_files = map(lambda p: p.name, Path(config["host_dir"]).glob("*.m4a"))
+    db.mark_missing(present_files=list(present_files))
+
 
 @cli.command(help="Refresh RSS")
 @click.pass_context
 def refresh(ctx):
     ctx.invoke(get_episodes)
     ctx.invoke(download_episodes)
+    ctx.invoke(mark_missing)
     ctx.invoke(write_rss)
 
 

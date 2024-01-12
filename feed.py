@@ -28,7 +28,7 @@ def get_audio(vid_id: str, download_dir: str):
         "format": "m4a/bestaudio/best",
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
         "outtmpl": f"{download_dir}/%(id)s.%(ext)s",
-        'match_filter': yt_dlp.utils.match_filter_func("!is_live"),
+        "match_filter": yt_dlp.utils.match_filter_func("!is_live"),
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:

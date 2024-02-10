@@ -99,6 +99,7 @@ def download_episodes():
         if duration < epi.channel.min_length * 60:  # skipp this episone if to short
             Path(tmp_file).unlink()  # remove file
             epi.mark_as_missing()
+            epi.mark_as_processed(duration) # will not try download it again
             log.debug(f"Skipping '{epi.title}' - To short!")
             continue
         shutil.move(tmp_file, dst_file)

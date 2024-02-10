@@ -9,3 +9,6 @@ sort:
 
 clean:
 	rm -rf feeds.sqlite*
+
+env:
+	source .env/bin/activate

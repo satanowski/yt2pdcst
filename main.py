@@ -35,8 +35,8 @@ db = PDCTSDB()
 
 @click.group()
 def cli():
-    atexit.register(db.close)
     pass
+#    atexit.register(db.close)
 
 
 @cli.command(help="Add YT channel to watch list")
@@ -45,9 +45,12 @@ def cli():
 @click.option(
     "--title-remove", default="", help="String (rgxp) to be removed from episode title"
 )
-def add_channel(channel_id, channel_name, title_remove):
+@click.option(
+    "--min-length", default=0, help="Minimal length (in minutes) of episode to be downloaded"
+)
+def add_channel(channel_id, channel_name, title_remove, min_length=0):
     log.debug(f"Adding channell {channel_id}:{channel_name}")
-    db.add_channel(channel_id, channel_name, title_remove)
+    db.add_channel(channel_id, channel_name, title_remove, min_length)
 
 
 @cli.command(help="Check and register new episodes")
@@ -81,14 +84,21 @@ def download_episodes():
 
         dst_file = f"{config['host_dir']}/{epi.vid_id}.m4a"
         log.info(f"Entry '{epi.title}' downloaded succesfully")
-        shutil.move(tmp_file, dst_file)
-        muu = mutagen.File(f"{config['host_dir']}/{epi.vid_id}.m4a")
+        
+        muu = mutagen.File(tmp_file)
         duration = int(muu.info.length) if muu else 0
+        if duration < epi.channel.min_length*60:  # skipp this episone if to short
+            Path(tmp_file).unlink()  # remove file
+            epi.mark_as_missing()
+            log.debug(f"Skipping '{epi.title}' - To short!")
+            continue
+        shutil.move(tmp_file, dst_file)
         epi.mark_as_processed(duration)
 
 
 @cli.command(help="List registered channels")
 def list_channels():
+    log.debug('listing channels')
     for ch in db.get_channels():  # pylint:disable=not-an-iterable
         print(f"{ch.channel_id}: {ch.name}")
 
@@ -100,7 +110,7 @@ def list_episodes():
         processed=None, present=None
     ):  # pylint:disable=not-an-iterable
         print(
-            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] {epi.title}"
+            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] {epi.title} [{epi.duration}]"
         )
 
 

@@ -20,6 +20,7 @@ DB_FILE = Path(__file__).parent / "feeds.sqlite"
 class Channel(Model):  # pylint:disable=too-few-public-methods
     channel_id = CharField(primary_key=True)
     name = CharField()
+    min_length = SmallIntegerField()
     epi_title_remove = CharField(default="")
 
 
@@ -63,9 +64,9 @@ class PDCTSDB:
         self._db.connect()
         self._db.create_tables([Channel, Episode])
 
-    def add_channel(self, channel_id: str, name: str, title_remove: str):
+    def add_channel(self, channel_id: str, name: str, title_remove: str, min_length: int):
         log.debug(f"Adding new channel: {name}")
-        ch = Channel(channel_id=channel_id, name=name, epi_title_remove=title_remove)
+        ch = Channel(channel_id=channel_id, name=name, epi_title_remove=title_remove, min_length=min_length)
         try:
             row_count = ch.save(force_insert=True)
             log.debug(f"Channel {name} {'not' if row_count!=1 else ''} added!")
@@ -130,7 +131,7 @@ class PDCTSDB:
         return self.get_episodes(processed=False, present=False).limit(5)
 
     def get_channels(self) -> Iterable[Channel]:
-        return Channel.select().order_by(Channel.channel_id)
+        return Channel.select()
 
     def mark_missing(self, present_files: Iterable[str]):
         for epi in Episode.select().where(Episode.present == True):

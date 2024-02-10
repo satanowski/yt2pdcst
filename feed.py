@@ -9,11 +9,14 @@ YT_RSS_BASE = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
 RawEpisode = namedtuple("RawEpisode", "epi_id,title,pub_date,thumb,description")
 
 
-def get_channel_episodes(channel_id: str):
+def get_channel_episodes(channel_id: str, must_contain=None):
     url = YT_RSS_BASE.format(channel_id)
     log.debug(f"Getting and parsing Feed: {url}")
     feed = feedparser.parse(url)
     for entry in feed["entries"]:
+        if must_contain:  # skip episode if does not match"must_contain"
+            if must_contain.lower() not in entry["title"].lower():
+                continue
         yield RawEpisode(
             epi_id=entry["yt_videoid"],
             title=entry["title"],

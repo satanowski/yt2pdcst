@@ -21,6 +21,7 @@ class Channel(Model):  # pylint:disable=too-few-public-methods
     channel_id = CharField(primary_key=True)
     name = CharField()
     min_length = SmallIntegerField()
+    title_must_contain = CharField(default=None)
     epi_title_remove = CharField(default="")
 
 
@@ -64,9 +65,22 @@ class PDCTSDB:
         self._db.connect()
         self._db.create_tables([Channel, Episode])
 
-    def add_channel(self, channel_id: str, name: str, title_remove: str, min_length: int):
+    def add_channel(
+        self,
+        channel_id: str,
+        name: str,
+        title_remove: str,
+        min_length: int,
+        must_contain: str,
+    ):
         log.debug(f"Adding new channel: {name}")
-        ch = Channel(channel_id=channel_id, name=name, epi_title_remove=title_remove, min_length=min_length)
+        ch = Channel(
+            channel_id=channel_id,
+            name=name,
+            epi_title_remove=title_remove,
+            min_length=min_length,
+            title_must_contain=must_contain,
+        )
         try:
             row_count = ch.save(force_insert=True)
             log.debug(f"Channel {name} {'not' if row_count!=1 else ''} added!")

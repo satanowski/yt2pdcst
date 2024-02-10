@@ -35,8 +35,8 @@ db = PDCTSDB()
 
 @click.group()
 def cli():
-    pass
-#    atexit.register(db.close)
+    atexit.register(db.close)
+    # pass
 
 
 @cli.command(help="Add YT channel to watch list")
@@ -46,11 +46,18 @@ def cli():
     "--title-remove", default="", help="String (rgxp) to be removed from episode title"
 )
 @click.option(
-    "--min-length", default=0, help="Minimal length (in minutes) of episode to be downloaded"
+    "--min-length",
+    default=0,
+    help="Minimal length (in minutes) of episode to be downloaded",
 )
-def add_channel(channel_id, channel_name, title_remove, min_length=0):
+@click.option(
+    "--must-contain",
+    default="",
+    help="Title must contain given string",
+)
+def add_channel(channel_id, channel_name, title_remove, min_length=0, must_contain=""):
     log.debug(f"Adding channell {channel_id}:{channel_name}")
-    db.add_channel(channel_id, channel_name, title_remove, min_length)
+    db.add_channel(channel_id, channel_name, title_remove, min_length, must_contain)
 
 
 @cli.command(help="Check and register new episodes")
@@ -58,7 +65,9 @@ def get_episodes():
     log.debug("Getting new episodes from YT...")
     for channel in db.get_channels():
         log.debug(f"Checking channel: {channel.name}...")
-        for epi in get_channel_episodes(str(channel.channel_id)):
+        for epi in get_channel_episodes(
+            str(channel.channel_id), channel.title_must_contain
+        ):
             db.add_new_episode(
                 episode_id=epi.epi_id,
                 title=epi.title,
@@ -84,10 +93,10 @@ def download_episodes():
 
         dst_file = f"{config['host_dir']}/{epi.vid_id}.m4a"
         log.info(f"Entry '{epi.title}' downloaded succesfully")
-        
+
         muu = mutagen.File(tmp_file)
         duration = int(muu.info.length) if muu else 0
-        if duration < epi.channel.min_length*60:  # skipp this episone if to short
+        if duration < epi.channel.min_length * 60:  # skipp this episone if to short
             Path(tmp_file).unlink()  # remove file
             epi.mark_as_missing()
             log.debug(f"Skipping '{epi.title}' - To short!")
@@ -98,9 +107,16 @@ def download_episodes():
 
 @cli.command(help="List registered channels")
 def list_channels():
-    log.debug('listing channels')
+    log.debug("listing channels")
     for ch in db.get_channels():  # pylint:disable=not-an-iterable
-        print(f"{ch.channel_id}: {ch.name}")
+        print(
+            (
+                f"{ch.channel_id}: {ch.name}\n"
+                f"\tmin duration: {ch.min_length}\n"
+                f"\ttitle must contain: {ch.title_must_contain}\n"
+                f"\tremove from title: {ch.epi_title_remove}\n"
+            )
+        )
 
 
 @cli.command(help="List registered episodes")
@@ -110,7 +126,11 @@ def list_episodes():
         processed=None, present=None
     ):  # pylint:disable=not-an-iterable
         print(
-            f"{epi.vid_id}: [{epi.channel}][{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] {epi.title} [{epi.duration}]"
+            (
+                f"{epi.vid_id}: [{epi.channel}]"
+                f"[{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] "
+                f"{epi.title} [{epi.duration}]"
+            )
         )
 
 

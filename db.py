@@ -17,8 +17,9 @@ from peewee import (
 DB_FILE = Path(__file__).parent / "feeds.sqlite"
 
 
-class Channel(Model):  # pylint:disable=too-few-public-methods
-    channel_id = CharField(primary_key=True)
+class Source(Model):  # pylint:disable=too-few-public-methods
+    source_id = CharField(primary_key=True)
+    is_playlist = BooleanField(default=False)
     name = CharField()
     min_length = SmallIntegerField()
     title_must_contain = CharField(default=None)
@@ -27,7 +28,7 @@ class Channel(Model):  # pylint:disable=too-few-public-methods
 
 class Episode(Model):  # pylint:disable=too-few-public-methods
     vid_id = CharField(primary_key=True)
-    channel = ForeignKeyField(Channel, backref="channel")
+    source = ForeignKeyField(Source, backref="source")
     title = CharField()
     description = CharField()
     pub_date = DateField()
@@ -59,33 +60,37 @@ class PDCTSDB:
             ),
         )
 
-        Channel.bind(self._db)
+        Source.bind(self._db)
         Episode.bind(self._db)
 
         self._db.connect()
-        self._db.create_tables([Channel, Episode])
+        self._db.create_tables([Source, Episode])
 
-    def add_channel(
+    def add_source(
         self,
-        channel_id: str,
+        source_id: str,
         name: str,
+        is_playlist: bool,
         title_remove: str,
         min_length: int,
         must_contain: str,
     ):
-        log.debug(f"Adding new channel: {name}")
-        ch = Channel(
-            channel_id=channel_id,
+        log.debug(
+            f"Adding new source ({'playlist' if is_playlist else 'channel'}): {name}"
+        )
+        src = Source(
+            source_id=source_id,
+            is_playlist=is_playlist,
             name=name,
             epi_title_remove=title_remove,
             min_length=min_length,
             title_must_contain=must_contain,
         )
         try:
-            row_count = ch.save(force_insert=True)
-            log.debug(f"Channel {name} {'not' if row_count!=1 else ''} added!")
+            row_count = src.save(force_insert=True)
+            log.debug(f"Source {name} {'not' if row_count!=1 else ''} added!")
         except IntegrityError:
-            log.debug(f"Channel {name} already exists!")
+            log.debug(f"Source {name} already exists!")
 
     def is_downloaded(self, episode_id: str) -> bool:
         log.debug(f"Checking if episode {episode_id} is already downloaded")
@@ -101,21 +106,21 @@ class PDCTSDB:
         pub_date: str,
         thumb: str,
         description: str,
-        channel: Channel,
+        source: Source,
     ):
         if self.epi_exists(episode_id):
             log.debug(f"Episode '{title}' already exists!")
             return
 
-        if channel.epi_title_remove:
+        if source.epi_title_remove:
             title = re.sub(
-                re.compile(channel.epi_title_remove, re.IGNORECASE), "", title
+                re.compile(source.epi_title_remove, re.IGNORECASE), "", title
             )
         title = title.strip()
 
         epi = Episode(
             vid_id=episode_id,
-            channel=channel,
+            source=source,
             title=title,
             description=description.strip(),
             thumbnail=thumb,
@@ -144,8 +149,8 @@ class PDCTSDB:
     def get_episodes2download(self) -> Iterable[Episode]:
         return self.get_episodes(processed=False, present=False).limit(5)
 
-    def get_channels(self) -> Iterable[Channel]:
-        return Channel.select()
+    def get_sources(self) -> Iterable[Source]:
+        return Source.select()
 
     def mark_missing(self, present_files: Iterable[str]):
         for epi in Episode.select().where(Episode.present == True):

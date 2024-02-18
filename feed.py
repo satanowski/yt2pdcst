@@ -1,10 +1,12 @@
 from collections import namedtuple
+from datetime import datetime
 
 import feedparser
 import yt_dlp
 from loguru import logger as log
 
 YT_RSS_BASE = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
+YT_PLS_BASE = "https://www.youtube.com/playlist?list={}"
 
 RawEpisode = namedtuple("RawEpisode", "epi_id,title,pub_date,thumb,description")
 
@@ -24,6 +26,30 @@ def get_channel_episodes(channel_id: str, must_contain=None):
             thumb=entry["media_thumbnail"][0]["url"],
             description=entry["summary_detail"]["value"],
         )
+
+
+def get_playlist_episodes(playlist_id: str, must_contain=None):
+    url = YT_PLS_BASE.format(playlist_id)
+    log.debug(f"Getting and parsing Playlist: {url}")
+    with yt_dlp.YoutubeDL() as yt:
+        meta = yt.extract_info(url, process=False)
+        for entry in meta["entries"]:
+            if must_contain:  # skip episode if does not match"must_contain"
+                if must_contain.lower() not in entry["title"].lower():
+                    continue
+            yield RawEpisode(
+                epi_id=entry["id"],
+                title=entry["title"],
+                pub_date=datetime.now(),
+                thumb=entry["thumbnails"][0]["url"],
+                description=entry["description"] or "",
+            )
+
+
+def get_source_episodes(source_id: str, is_playlist: bool, must_contain=None):
+    return (
+        get_playlist_episodes(source_id, must_contain) if is_playlist else get_channel_episodes(source_id, must_contain)
+    )
 
 
 def get_audio(vid_id: str, download_dir: str):

@@ -11,7 +11,7 @@ from loguru import logger as log
 from toml.decoder import TomlDecodeError
 
 from db import PDCTSDB
-from feed import get_audio, get_channel_episodes
+from feed import get_audio, get_source_episodes
 from rss import make_rss
 
 CFG_FILE = Path(__file__).parent / "config.toml"
@@ -39,9 +39,10 @@ def cli():
     # pass
 
 
-@cli.command(help="Add YT channel to watch list")
-@click.argument("channel_id", required=True)
-@click.argument("channel_name", required=True)
+@cli.command(help="Add YT source (channel of play-list) to watch list")
+@click.argument("source_id", required=True)
+@click.argument("source_name", required=True)
+@click.option("--is-playlist", default=False, help="True if playlist, False if channel")
 @click.option(
     "--title-remove", default="", help="String (rgxp) to be removed from episode title"
 )
@@ -55,24 +56,30 @@ def cli():
     default="",
     help="Title must contain given string",
 )
-def add_channel(channel_id, channel_name, title_remove, min_length=0, must_contain=""):
-    log.debug(f"Adding channell {channel_id}:{channel_name}")
-    db.add_channel(channel_id, channel_name, title_remove, min_length, must_contain)
+def add_source(
+    source_id, source_name, is_playlist, title_remove, min_length=0, must_contain=""
+):
+    log.debug(f"Adding source {source_id}:{source_name}")
+    db.add_source(
+        source_id, source_name, is_playlist, title_remove, min_length, must_contain
+    )
 
 
 @cli.command(help="Check and register new episodes")
 def get_episodes():
     log.debug("Getting new episodes from YT...")
-    for channel in db.get_channels():
-        log.debug(f"Checking channel: {channel.name}...")
-        for epi in get_channel_episodes(
-            str(channel.channel_id), channel.title_must_contain
+    for source in db.get_sources():
+        log.debug(f"Checking source: {source.name}...")
+        for epi in get_source_episodes(
+            source_id=str(source.source_id),
+            is_playlist=source.is_playlist,
+            must_contain=source.title_must_contain,
         ):
             db.add_new_episode(
                 episode_id=epi.epi_id,
                 title=epi.title,
                 description=epi.description,
-                channel=channel,
+                source=source,
                 pub_date=epi.pub_date,
                 thumb=epi.thumb,
             )
@@ -96,26 +103,26 @@ def download_episodes():
 
         muu = mutagen.File(tmp_file)
         duration = int(muu.info.length) if muu else 0
-        if duration < epi.channel.min_length * 60:  # skipp this episone if to short
+        if duration < epi.source.min_length * 60:  # skipp this episone if to short
             Path(tmp_file).unlink()  # remove file
             epi.mark_as_missing()
-            epi.mark_as_processed(duration) # will not try download it again
+            epi.mark_as_processed(duration)  # will not try download it again
             log.debug(f"Skipping '{epi.title}' - To short!")
             continue
         shutil.move(tmp_file, dst_file)
         epi.mark_as_processed(duration)
 
 
-@cli.command(help="List registered channels")
-def list_channels():
-    log.debug("listing channels")
-    for ch in db.get_channels():  # pylint:disable=not-an-iterable
+@cli.command(help="List registered sources")
+def list_sources():
+    log.debug("listing sources")
+    for src in db.get_sources():  # pylint:disable=not-an-iterable
         print(
             (
-                f"{ch.channel_id}: {ch.name}\n"
-                f"\tmin duration: {ch.min_length}\n"
-                f"\ttitle must contain: {ch.title_must_contain}\n"
-                f"\tremove from title: {ch.epi_title_remove}\n"
+                f"{src.source_id} [{'play-list' if src.is_playlist else 'channel'}]: {src.name}\n"
+                f"\tmin duration: {src.min_length}\n"
+                f"\ttitle must contain: {src.title_must_contain}\n"
+                f"\tremove from title: {src.epi_title_remove}\n"
             )
         )
 
@@ -128,7 +135,7 @@ def list_episodes():
     ):  # pylint:disable=not-an-iterable
         print(
             (
-                f"{epi.vid_id}: [{epi.channel}]"
+                f"{epi.vid_id}: [{epi.source}]"
                 f"[{'+' if epi.processed else '-'}/{'+' if epi.present else '-'}] "
                 f"{epi.title} [{epi.duration}]"
             )

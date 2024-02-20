@@ -44,7 +44,7 @@ def get_playlist_episodes(playlist_id: str, must_contain=None):
                 epi_id=entry["id"],
                 title=entry["title"],
                 pub_date=datetime.now(),
-                thumb=entry["thumbnails"][0]["url"],
+                thumb=clean_thumb_link(entry["thumbnails"][0]["url"]),
                 description=entry["description"] or "",
             )
 

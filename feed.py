@@ -1,5 +1,6 @@
 from collections import namedtuple
 from datetime import datetime
+import re
 
 import feedparser
 import yt_dlp
@@ -10,6 +11,8 @@ YT_PLS_BASE = "https://www.youtube.com/playlist?list={}"
 
 RawEpisode = namedtuple("RawEpisode", "epi_id,title,pub_date,thumb,description")
 
+def clean_thumb_link(url:str):
+    return re.sub(r'\?.*$', '', url)
 
 def get_channel_episodes(channel_id: str, must_contain=None):
     url = YT_RSS_BASE.format(channel_id)
@@ -23,7 +26,7 @@ def get_channel_episodes(channel_id: str, must_contain=None):
             epi_id=entry["yt_videoid"],
             title=entry["title"],
             pub_date=entry["published"],
-            thumb=entry["media_thumbnail"][0]["url"],
+            thumb=clean_thumb_link(entry["media_thumbnail"][0]["url"]),
             description=entry["summary_detail"]["value"],
         )
 

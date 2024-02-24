@@ -1,23 +1,19 @@
 {% for item in items %}
 <item>
+    <guid isPermaLink="false">{{item.vid_id}}</guid>
     <title>{{item.title}}</title>
-    <link>{{podcast_item_base_url}}/{{item.vid_id}}.m4a</link>
-    <description>{{item.description}}</description>
     <pubDate>{{item.pub_date}}</pubDate>
-    <itunes:title>{{item.title}}</itunes:title>
-    <itunes:episodeType>full</itunes:episodeType>
-    <itunes:episode>{{item.num}}</itunes:episode>
-    <itunes:author>{{item.source.name}}</itunes:author>
+    <description><![CDATA[{{item.description}}]]></description>
+    <enclosure url="{{podcast_item_base_url}}/{{item.vid_id}}.m4a" length="{{item.duration}}" type="audio/mpeg"/>
+    <media:content fileSize="" type="audio/mpeg" url="{{podcast_item_base_url}}/{{item.vid_id}}.m4a"/>
     <itunes:subtitle>{{item.source.name}}</itunes:subtitle>
-    <itunes:summary>{{item.description}}</itunes:summary>
-    <itunes:image href="{{item.thumbnail}}"/>
-    <content:encoded>
-    <![CDATA[<p>{{item.description}}</p>]]>
-    </content:encoded>
+    <itunes:episodeType>full</itunes:episodeType>
     <itunes:duration>{{item.duration}}</itunes:duration>
-    <itunes:explicit>no</itunes:explicit>
-    <guid isPermaLink="false"><![CDATA[{{item.num}}]]></guid>
-    <enclosure url="{{podcast_item_base_url}}/{{item.vid_id}}.m4a" length="0" type="audio/mpeg"/>
+    <itunes:author>{{item.source.name}}</itunes:author>
+    <itunes:episode>{{item.num}}</itunes:episode>
+    <category><![CDATA[yt-podcast]]></category>
+    <itunes:summary><![CDATA[{{item.description}}]]></itunes:summary>
+    <content:encoded><![CDATA[<p>{{item.description}}</p>]]></content:encoded>
+    <itunes:image href="{{item.thumbnail}}"/>
 </item>
-
 {% endfor %}

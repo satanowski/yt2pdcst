@@ -3,6 +3,7 @@ import atexit
 import shutil
 import sys
 from pathlib import Path
+from datetime import datetime
 
 import click
 import mutagen
@@ -148,6 +149,7 @@ def write_rss():
     meta = config["RSS_META"]
     base_url = f"{config['RSS_SETTINGS']['base_url']}/{config['RSS_SETTINGS']['index']}"
     meta["podcast_url"] = base_url
+    meta["pubDate"] = datetime.now().isoformat()
     rss_file = Path(f"{config['host_dir']}/{config['RSS_SETTINGS']['index']}")
     with rss_file.open("w", encoding="utf-8") as rss:
         rss.write(
@@ -155,7 +157,7 @@ def write_rss():
                 context=meta, entries=db.get_episodes(processed=True, present=True)
             )
         )
-        log.debug(f"rss file written ({rss_file.name})")
+        log.debug(f"rss file written ({rss_file})")
 
 
 @cli.command(help="Mark missing files")

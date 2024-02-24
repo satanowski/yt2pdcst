@@ -1,16 +1,29 @@
-<itunes:explicit>no</itunes:explicit>
-<itunes:type>episodic</itunes:type>
-<itunes:subtitle>{{podcast_subtitle}}</itunes:subtitle>
+<title>{{podcast_name}}</title>
+<link>{{podcast_url}}</link>
+<pubDate>{{pub_date}}</pubDate>
+<lastBuildDate>{{pub_date}}</lastBuildDate>
+<ttl>60</ttl>
+<language>pl-pl</language>
+<copyright>{{copyright}}</copyright>
+<webMaster>foo@bar.com</webMaster>
+<description>{{podcast_description}}</description>
+<generator>yt2podcast</generator>
+<atom:link href="{{podcast_url}}" rel="self" type="application/rss+xml"/>
 <itunes:author>{{podcast_author}}</itunes:author>
-<itunes:summary>{{podcast_summary}}</itunes:summary>
-<content:encoded>
-    <![CDATA[<p>{{podcast_summary}}</p>]]>
-</content:encoded>
+<itunes:type>episodic</itunes:type>
+<itunes:image href="{{podcast_image_url}}"/>
+<itunes:explicit>false</itunes:explicit>
 <itunes:owner>
-    <itunes:name>{{podcast_name}}</itunes:name>
-    <itunes:email>{{podcast_email}}</itunes:email>
+  <itunes:email>{{podcast_email}}</itunes:email>
+  <itunes:name>{{podcast_author}}</itunes:name>
 </itunes:owner>
-<itunes:image href="{{podcast_url}}"/>
+<itunes:subtitle>{{podcast_subtitle}}</itunes:subtitle>
+<itunes:summary><![CDATA[{{podcast_summary}}]]></itunes:summary>
+<media:copyright>{{copyright}}</media:copyright>
+
 {% for cat in podcast_categories %}
-<itunes:category text="{{cat}}"> </itunes:category>
+<itunes:category text="{{cat}}"></itunes:category>
+<media:category scheme="http://www.itunes.com/dtds/podcast-1.0.dtd">{{cat}}</media:category>
 {% endfor %}
+<sy:updatePeriod>hourly</sy:updatePeriod>
+<sy:updateFrequency>1</sy:updateFrequency>

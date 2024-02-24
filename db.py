@@ -47,7 +47,7 @@ class Episode(Model):  # pylint:disable=too-few-public-methods
         self.present = False
         log.debug(f"Mark {self.vid_id} as not present")
         return self.save() == 1
-
+    
 
 class PDCTSDB:
     def __init__(self):
